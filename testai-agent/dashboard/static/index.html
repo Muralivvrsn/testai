@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TestAI Agent — Dashboard</title>
+    <style>
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --border: #e5e5e5;
+            --text: #1a1a1a;
+            --text-muted: #666666;
+            --accent: #0066cc;
+            --accent-light: #e6f0ff;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .logo span { color: var(--accent); }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .status-dot.loading {
+            background: var(--warning);
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Layout */
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        /* Input Section */
+        .input-group {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        input, select, textarea {
+            font-family: inherit;
+            font-size: 0.9375rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.625rem 0.875rem;
+            background: var(--surface);
+            color: var(--text);
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-light);
+        }
+
+        input[type="text"], textarea { flex: 1; }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: var(--mono);
+            font-size: 0.8125rem;
+        }
+
+        select { min-width: 140px; }
+
+        button {
+            font-family: inherit;
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: 0.625rem 1.25rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover { background: #0052a3; }
+        .btn-primary:disabled {
+            background: var(--border);
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover { background: var(--border); }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.25rem;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 1rem;
+        }
+
+        .tab {
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+
+        .tab:hover { color: var(--text); }
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        /* Results */
+        .results-container {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .test-item {
+            padding: 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 0.75rem;
+        }
+
+        .test-item:last-child { margin-bottom: 0; }
+
+        .test-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .test-title {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .test-meta {
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+        }
+
+        .test-priority {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .priority-high { background: #fee2e2; color: #b91c1c; }
+        .priority-medium { background: #fef3c7; color: #92400e; }
+        .priority-low { background: #e0e7ff; color: #3730a3; }
+
+        .test-steps {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .test-steps ol {
+            margin-left: 1.25rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .test-steps li { margin-bottom: 0.25rem; }
+
+        .citation {
+            display: inline-block;
+            font-size: 0.6875rem;
+            padding: 0.125rem 0.375rem;
+            background: var(--accent-light);
+            color: var(--accent);
+            border-radius: 3px;
+            margin-left: 0.25rem;
+            font-weight: 500;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Code Block */
+        .code-block {
+            background: #1a1a1a;
+            color: #e5e5e5;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: var(--mono);
+            font-size: 0.8125rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* Summary */
+        .summary-text {
+            font-size: 0.9375rem;
+            line-height: 1.7;
+        }
+
+        .summary-text strong { color: var(--accent); }
+
+        /* Loading */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .loading-overlay.visible { display: flex; }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state h3 {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        /* Two Column Layout */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 900px) {
+            .two-col { grid-template-columns: 1fr; }
+        }
+
+        /* Risk Badge */
+        .risk-badge {
+            display: inline-block;
+            padding: 0.375rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .risk-low { background: #dcfce7; color: #166534; }
+        .risk-medium { background: #fef3c7; color: #92400e; }
+        .risk-high { background: #fee2e2; color: #b91c1c; }
+
+        /* Ship Decision */
+        .ship-decision {
+            font-size: 1.125rem;
+            font-weight: 600;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .ship-yes { background: #dcfce7; color: #166534; }
+        .ship-caution { background: #fef3c7; color: #92400e; }
+        .ship-no { background: #fee2e2; color: #b91c1c; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">TestAI<span>Agent</span></div>
+        <div class="status-badge">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Ready</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- Generate Card -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Generate Tests</span>
+            </div>
+            <div class="input-group">
+                <input type="text" id="featureInput" placeholder="Describe the feature to test..." />
+                <select id="pageType">
+                    <option value="">Auto-detect</option>
+                    <option value="login">Login Page</option>
+                    <option value="signup">Signup Page</option>
+                    <option value="checkout">Checkout</option>
+                    <option value="search">Search</option>
+                    <option value="profile">Profile</option>
+                </select>
+                <select id="stakeholder">
+                    <option value="executive">Executive</option>
+                    <option value="product">Product</option>
+                    <option value="engineering">Engineering</option>
+                    <option value="qa">QA</option>
+                </select>
+                <button class="btn-primary" id="generateBtn">Generate</button>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" style="display: none;">
+            <!-- Stats -->
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <div class="stat-value" id="testCount">0</div>
+                    <div class="stat-label">Tests Generated</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="citationCount">0</div>
+                    <div class="stat-label">Citations</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="execTime">0ms</div>
+                    <div class="stat-label">Generation Time</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="pageTypeDisplay">—</div>
+                    <div class="stat-label">Page Type</div>
+                </div>
+            </div>
+
+            <!-- Ship Decision -->
+            <div class="ship-decision" id="shipDecision"></div>
+
+            <!-- Two Column -->
+            <div class="two-col">
+                <!-- Tests -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Test Cases</span>
+                        <button class="btn-secondary" id="exportBtn">Export</button>
+                    </div>
+                    <div class="tabs">
+                        <button class="tab active" data-tab="tests">Tests</button>
+                        <button class="tab" data-tab="code">Code</button>
+                    </div>
+                    <div class="results-container" id="testsTab">
+                        <div class="empty-state">
+                            <h3>No tests yet</h3>
+                            <p>Enter a feature description and click Generate</p>
+                        </div>
+                    </div>
+                    <div class="results-container" id="codeTab" style="display: none;">
+                        <pre class="code-block" id="codeOutput"></pre>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Summary</span>
+                        <span class="risk-badge" id="riskBadge"></span>
+                    </div>
+                    <div class="summary-text" id="summaryText">
+                        <div class="empty-state">
+                            <h3>No summary</h3>
+                            <p>Generate tests to see the executive summary</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Data Generator -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Test Data Generator</span>
+            </div>
+            <div class="input-group">
+                <select id="inputType">
+                    <option value="email">Email</option>
+                    <option value="password">Password</option>
+                    <option value="username">Username</option>
+                    <option value="phone">Phone</option>
+                    <option value="credit_card">Credit Card</option>
+                    <option value="date">Date</option>
+                    <option value="url">URL</option>
+                    <option value="text">Text</option>
+                </select>
+                <button class="btn-secondary" id="generateDataBtn">Generate Data</button>
+            </div>
+            <div id="testDataOutput" style="display: none;">
+                <div class="tabs">
+                    <button class="tab active" data-group="data" data-tab="valid">Valid</button>
+                    <button class="tab" data-group="data" data-tab="invalid">Invalid</button>
+                    <button class="tab" data-group="data" data-tab="edge">Edge Cases</button>
+                    <button class="tab" data-group="data" data-tab="security">Security</button>
+                </div>
+                <div class="results-container">
+                    <pre class="code-block" id="dataOutput"></pre>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">Generating tests...</div>
+    </div>
+
+    <script>
+        const API_BASE = '';  // Same origin
+
+        // State
+        let currentResult = null;
+        let currentTestData = null;
+
+        // Elements
+        const featureInput = document.getElementById('featureInput');
+        const pageType = document.getElementById('pageType');
+        const stakeholder = document.getElementById('stakeholder');
+        const generateBtn = document.getElementById('generateBtn');
+        const resultsSection = document.getElementById('resultsSection');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const group = tab.dataset.group || 'main';
+                const tabId = tab.dataset.tab;
+
+                // Update active tab
+                document.querySelectorAll(`.tab${group === 'main' ? ':not([data-group])' : `[data-group="${group}"]`}`).forEach(t => {
+                    t.classList.remove('active');
+                });
+                tab.classList.add('active');
+
+                // Show/hide content
+                if (group === 'main') {
+                    document.getElementById('testsTab').style.display = tabId === 'tests' ? 'block' : 'none';
+                    document.getElementById('codeTab').style.display = tabId === 'code' ? 'block' : 'none';
+                } else if (group === 'data' && currentTestData) {
+                    displayTestData(currentTestData, tabId);
+                }
+            });
+        });
+
+        // Generate tests
+        generateBtn.addEventListener('click', async () => {
+            const feature = featureInput.value.trim();
+            if (!feature) {
+                featureInput.focus();
+                return;
+            }
+
+            showLoading('Generating tests...');
+            setStatus('loading', 'Generating...');
+
+            try {
+                const response = await fetch(`${API_BASE}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        feature,
+                        page_type: pageType.value || null,
+                        stakeholder: stakeholder.value,
+                        skip_clarify: true,
+                        max_tests: 20
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    currentResult = result.data;
+                    displayResults(result.data);
+                    setStatus('ready', 'Ready');
+                } else {
+                    throw new Error(result.error?.message || 'Generation failed');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                setStatus('error', 'Error');
+                alert('Failed to generate tests: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // Display results
+        function displayResults(data) {
+            resultsSection.style.display = 'block';
+
+            // Stats
+            document.getElementById('testCount').textContent = data.test_count;
+            document.getElementById('citationCount').textContent = data.citations?.length || 0;
+            document.getElementById('execTime').textContent = Math.round(data.execution_time_ms) + 'ms';
+            document.getElementById('pageTypeDisplay').textContent = data.page_type || 'Generic';
+
+            // Ship decision
+            const shipEl = document.getElementById('shipDecision');
+            const shipText = data.ship_decision || 'Unknown';
+            shipEl.textContent = shipText.toUpperCase();
+            shipEl.className = 'ship-decision ' + (
+                shipText.toLowerCase().includes('yes') ? 'ship-yes' :
+                shipText.toLowerCase().includes('caution') ? 'ship-caution' : 'ship-no'
+            );
+
+            // Risk badge
+            const riskEl = document.getElementById('riskBadge');
+            const risk = (data.risk_level || 'medium').toLowerCase();
+            riskEl.textContent = risk.charAt(0).toUpperCase() + risk.slice(1) + ' Risk';
+            riskEl.className = 'risk-badge risk-' + risk;
+
+            // Tests
+            const testsTab = document.getElementById('testsTab');
+            if (data.tests && data.tests.length > 0) {
+                testsTab.innerHTML = data.tests.map(test => `
+                    <div class="test-item">
+                        <div class="test-header">
+                            <div>
+                                <div class="test-title">${escapeHtml(test.title || test.name || 'Test')}</div>
+                                <div class="test-meta">
+                                    ${test.category || ''}
+                                    ${test.citation ? `<span class="citation">${test.citation}</span>` : ''}
+                                </div>
+                            </div>
+                            <span class="test-priority priority-${(test.priority || 'medium').toLowerCase()}">
+                                ${(test.priority || 'Medium').toUpperCase()}
+                            </span>
+                        </div>
+                        ${test.steps ? `
+                            <div class="test-steps">
+                                <ol>${test.steps.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ol>
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('');
+            } else {
+                testsTab.innerHTML = '<div class="empty-state"><h3>No tests generated</h3></div>';
+            }
+
+            // Summary
+            const summaryEl = document.getElementById('summaryText');
+            summaryEl.innerHTML = data.summary ?
+                `<p>${escapeHtml(data.summary)}</p>` :
+                '<div class="empty-state"><p>No summary available</p></div>';
+
+            // Generate code
+            generateCode();
+        }
+
+        // Generate code preview
+        async function generateCode() {
+            if (!currentResult?.tests) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/export`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tests: currentResult.tests,
+                        format: 'pytest',
+                        feature: featureInput.value
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('codeOutput').textContent = result.data.content;
+                }
+            } catch (error) {
+                console.error('Code generation error:', error);
+            }
+        }
+
+        // Export
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            if (!currentResult?.tests) return;
+
+            const format = prompt('Export format (json, pytest, typescript):', 'pytest');
+            if (!format) return;
+
+            fetch(`${API_BASE}/export`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tests: currentResult.tests,
+                    format: format,
+                    feature: featureInput.value
+                })
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    const content = typeof result.data.content === 'string'
+                        ? result.data.content
+                        : JSON.stringify(result.data.content, null, 2);
+
+                    const blob = new Blob([content], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `tests.${format === 'json' ? 'json' : format === 'typescript' ? 'ts' : 'py'}`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+            });
+        });
+
+        // Test data generation
+        document.getElementById('generateDataBtn').addEventListener('click', async () => {
+            const inputType = document.getElementById('inputType').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/test-data`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input_type: inputType })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    currentTestData = result.data;
+                    document.getElementById('testDataOutput').style.display = 'block';
+                    displayTestData(result.data, 'valid');
+                }
+            } catch (error) {
+                console.error('Test data error:', error);
+            }
+        });
+
+        function displayTestData(data, category) {
+            const output = document.getElementById('dataOutput');
+            const items = data[category] || data[category + '_cases'] || [];
+
+            if (items.length === 0) {
+                output.textContent = 'No data available for this category';
+                return;
+            }
+
+            output.textContent = items.map(item =>
+                `${item.value}\n  → ${item.description}`
+            ).join('\n\n');
+        }
+
+        // Utilities
+        function showLoading(text) {
+            loadingText.textContent = text;
+            loadingOverlay.classList.add('visible');
+        }
+
+        function hideLoading() {
+            loadingOverlay.classList.remove('visible');
+        }
+
+        function setStatus(state, text) {
+            statusDot.className = 'status-dot' + (state === 'loading' ? ' loading' : '');
+            statusText.textContent = text;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Health check on load
+        fetch(`${API_BASE}/health`)
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    setStatus('ready', 'Connected');
+                }
+            })
+            .catch(() => {
+                setStatus('error', 'API Offline');
+            });
+    </script>
+</body>
+</html>

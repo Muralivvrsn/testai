@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TestAI QA Agent - Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #1a1a2e;
+            --bg-darker: #16162a;
+            --bg-chat: #0f0f23;
+            --text-primary: #e4e4e7;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --user-bg: #3730a3;
+            --agent-bg: #27272a;
+            --success: #22c55e;
+            --border: #27272a;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-darker);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header h1 span {
+            font-size: 24px;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        /* Main Chat Area */
+        .main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Chat Container */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Messages */
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message {
+            max-width: 85%;
+            padding: 14px 18px;
+            border-radius: 16px;
+            line-height: 1.5;
+            font-size: 14px;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            background: var(--user-bg);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.agent {
+            background: var(--agent-bg);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.system {
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 13px;
+            text-align: center;
+            align-self: center;
+            padding: 8px 16px;
+        }
+
+        .message-header {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .message pre {
+            background: rgba(0,0,0,0.3);
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 10px 0;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+        }
+
+        .message code {
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+        }
+
+        .message h3, .message h4 {
+            margin: 12px 0 8px 0;
+            color: var(--accent-hover);
+        }
+
+        .message ul, .message ol {
+            margin-left: 20px;
+            margin-top: 8px;
+        }
+
+        .message li {
+            margin-bottom: 4px;
+        }
+
+        .message strong {
+            color: var(--accent-hover);
+        }
+
+        /* Typing Indicator */
+        .typing {
+            display: flex;
+            gap: 4px;
+            padding: 14px 18px;
+            background: var(--agent-bg);
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            align-self: flex-start;
+        }
+
+        .typing span {
+            width: 8px;
+            height: 8px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+
+        .typing span:nth-child(1) { animation-delay: -0.32s; }
+        .typing span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        /* Input Area */
+        .input-area {
+            padding: 20px 24px;
+            background: var(--bg-darker);
+            border-top: 1px solid var(--border);
+        }
+
+        .input-container {
+            display: flex;
+            gap: 12px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        #messageInput {
+            width: 100%;
+            padding: 14px 18px;
+            background: var(--bg-chat);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 14px;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        #messageInput:focus {
+            border-color: var(--accent);
+        }
+
+        #messageInput::placeholder {
+            color: var(--text-muted);
+        }
+
+        #sendBtn {
+            padding: 14px 24px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #sendBtn:hover {
+            background: var(--accent-hover);
+        }
+
+        #sendBtn:disabled {
+            background: var(--border);
+            cursor: not-allowed;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: var(--bg-darker);
+            border-left: 1px solid var(--border);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .sidebar h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar-section {
+            margin-bottom: 24px;
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+        }
+
+        .stat-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .commands {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .command {
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: 6px 10px;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .command:hover {
+            background: rgba(99, 102, 241, 0.2);
+        }
+
+        .command code {
+            color: var(--accent-hover);
+            font-weight: 500;
+        }
+
+        .features-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .feature-tag {
+            font-size: 11px;
+            padding: 4px 8px;
+            background: var(--agent-bg);
+            border-radius: 4px;
+            color: var(--text-secondary);
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .sidebar {
+                display: none;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1><span>🧪</span> TestAI QA Agent</h1>
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot"></div>
+                <span>Alex is online</span>
+            </div>
+            <div class="status-item">
+                <span id="callCount">API: 0/50</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="chat-container">
+            <div class="messages" id="messages">
+                <div class="message system">
+                    Chat with Alex, your senior QA engineer. Ask about testing, generate test cases, or just chat!
+                </div>
+            </div>
+
+            <div class="input-area">
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <textarea
+                            id="messageInput"
+                            placeholder="Ask Alex anything about QA testing..."
+                            rows="1"
+                        ></textarea>
+                    </div>
+                    <button id="sendBtn">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3>Session Stats</h3>
+                <div class="stat">
+                    <span class="stat-label">Messages</span>
+                    <span class="stat-value" id="messageCount">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">API Calls</span>
+                    <span class="stat-value" id="apiCalls">0/50</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Findings</span>
+                    <span class="stat-value" id="findingsCount">0</span>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Commands</h3>
+                <div class="commands">
+                    <div class="command" onclick="sendCommand('/test login')">
+                        <code>/test &lt;feature&gt;</code> - Generate tests
+                    </div>
+                    <div class="command" onclick="sendCommand('/status')">
+                        <code>/status</code> - Show stats
+                    </div>
+                    <div class="command" onclick="sendCommand('/clear')">
+                        <code>/clear</code> - Clear chat
+                    </div>
+                    <div class="command" onclick="sendCommand('/forget')">
+                        <code>/forget</code> - Reset memory
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Features Tested</h3>
+                <div class="features-list" id="featuresList">
+                    <span class="feature-tag">None yet</span>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        const messagesContainer = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        // Auto-resize textarea
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        // Send on Enter (Shift+Enter for new line)
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        sendBtn.addEventListener('click', sendMessage);
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Add user message
+            addMessage(message, 'user');
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+
+            // Show typing indicator
+            const typing = showTyping();
+
+            // Disable input
+            sendBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+
+                const data = await response.json();
+
+                // Remove typing indicator
+                typing.remove();
+
+                // Add agent response
+                addMessage(data.response, 'agent');
+
+                // Update stats
+                if (data.call_count !== undefined) {
+                    updateStats(data);
+                }
+
+            } catch (error) {
+                typing.remove();
+                addMessage('Connection error. Please try again.', 'system');
+            }
+
+            sendBtn.disabled = false;
+            messageInput.focus();
+        }
+
+        function addMessage(content, type) {
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+
+            if (type === 'agent') {
+                // Parse markdown-like formatting
+                content = formatMessage(content);
+                div.innerHTML = `<div class="message-header">Alex</div>${content}`;
+            } else if (type === 'user') {
+                div.innerHTML = `<div class="message-header">You</div>${escapeHtml(content)}`;
+            } else {
+                div.textContent = content;
+            }
+
+            messagesContainer.appendChild(div);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function formatMessage(text) {
+            // Escape HTML first
+            text = escapeHtml(text);
+
+            // Code blocks
+            text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+            text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // Bold
+            text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+            // Headers
+            text = text.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+            text = text.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+
+            // Lists
+            text = text.replace(/^- (.+)$/gm, '<li>$1</li>');
+            text = text.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+            // Line breaks
+            text = text.replace(/\n/g, '<br>');
+
+            return text;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showTyping() {
+            const div = document.createElement('div');
+            div.className = 'typing';
+            div.innerHTML = '<span></span><span></span><span></span>';
+            messagesContainer.appendChild(div);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            return div;
+        }
+
+        function updateStats(data) {
+            document.getElementById('callCount').textContent = `API: ${data.call_count}/${data.max_calls}`;
+            document.getElementById('apiCalls').textContent = `${data.call_count}/${data.max_calls}`;
+
+            if (data.session) {
+                const match = data.session.match(/Messages: (\d+)/);
+                if (match) {
+                    document.getElementById('messageCount').textContent = match[1];
+                }
+            }
+        }
+
+        function sendCommand(cmd) {
+            messageInput.value = cmd;
+            sendMessage();
+        }
+
+        // Initial status fetch
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('messageCount').textContent = data.message_count;
+                document.getElementById('apiCalls').textContent = `${data.call_count}/${data.max_calls}`;
+                document.getElementById('callCount').textContent = `API: ${data.call_count}/${data.max_calls}`;
+                document.getElementById('findingsCount').textContent = data.findings_count;
+
+                if (data.features_tested && data.features_tested.length > 0) {
+                    const list = document.getElementById('featuresList');
+                    list.innerHTML = data.features_tested
+                        .map(f => `<span class="feature-tag">${f}</span>`)
+                        .join('');
+                }
+            });
+
+        // Focus input on load
+        messageInput.focus();
+    </script>
+</body>
+</html>

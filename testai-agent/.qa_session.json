@@ -1,0 +1,16 @@
+{
+  "project": null,
+  "features_tested": [
+    "site",
+    "here",
+    "well",
+    "cases",
+    "run?",
+    "validations",
+    "processing"
+  ],
+  "findings": [],
+  "last_feature": "processing",
+  "conversation_summary": "",
+  "preferences": {}
+}

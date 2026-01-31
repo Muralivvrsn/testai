@@ -1,0 +1,25 @@
+# TestAI Agent - Dependencies
+# ============================
+
+# Vector Store (Brain)
+chromadb>=0.4.0
+
+# LLM Connectors
+httpx>=0.25.0
+aiohttp>=3.9.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Data Validation
+pydantic>=2.0.0
+
+# CLI Utilities (optional, for enhanced UI)
+# rich>=13.0.0
+
+# Testing (development)
+# pytest>=7.0.0
+# pytest-asyncio>=0.21.0
+
+# Note: This project uses DeepSeek API by default
+# API Key should be set in .env or passed directly
