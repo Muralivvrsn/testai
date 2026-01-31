@@ -237,7 +237,7 @@ Return JSON with: pageType, confidence, primaryPurpose, keyElements`;
   /**
    * Analyze security vulnerabilities in a feature
    */
-  async analyzeSecurit(specification: FeatureSpecification): Promise<{
+  async analyzeSecurity(specification: FeatureSpecification): Promise<{
     vulnerabilities: any[];
     securityTests: any[];
   }> {

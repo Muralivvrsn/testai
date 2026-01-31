@@ -1,110 +1,95 @@
-/**
- * YaliTest - Preload Script for Main Window
- *
- * Exposes safe IPC methods to React renderer
- * These functions are designed to be reusable for Chrome extension
- */
+const { contextBridge, ipcRenderer } = require('electron')
 
-const { contextBridge, ipcRenderer } = require('electron');
+// Track listeners for cleanup
+const listeners = new Map()
 
-// Expose protected methods to renderer
-contextBridge.exposeInMainWorld('yalitest', {
-  // Engine control
-  startEngine: () => ipcRenderer.invoke('start-engine'),
-  stopEngine: () => ipcRenderer.invoke('stop-engine'),
+// Helper to add listener with cleanup support
+function addListener(channel, callback) {
+  const wrappedCallback = (_, ...args) => callback(...args)
+  ipcRenderer.on(channel, wrappedCallback)
 
-  // Navigation
+  // Store for cleanup
+  if (!listeners.has(channel)) {
+    listeners.set(channel, [])
+  }
+  listeners.get(channel).push(wrappedCallback)
+
+  // Return cleanup function
+  return () => {
+    ipcRenderer.removeListener(channel, wrappedCallback)
+    const channelListeners = listeners.get(channel)
+    if (channelListeners) {
+      const idx = channelListeners.indexOf(wrappedCallback)
+      if (idx > -1) channelListeners.splice(idx, 1)
+    }
+  }
+}
+
+contextBridge.exposeInMainWorld('api', {
+  // ============ NAVIGATION ============
   navigate: (url) => ipcRenderer.invoke('navigate', url),
   goBack: () => ipcRenderer.invoke('go-back'),
   goForward: () => ipcRenderer.invoke('go-forward'),
   reload: () => ipcRenderer.invoke('reload'),
 
-  // Element interaction
-  clickElement: (mmid) => ipcRenderer.invoke('click-element', mmid),
-  inputText: (mmid, text) => ipcRenderer.invoke('input-text', { mmid, text }),
+  // ============ LAYOUT ============
+  setSidebarWidth: (width) => ipcRenderer.invoke('set-sidebar-width', width),
+  setChatWidth: (width) => ipcRenderer.invoke('set-chat-width', width),
+  setViewport: (width, height) => ipcRenderer.invoke('set-viewport', width, height),
 
-  // State
-  getState: () => ipcRenderer.invoke('get-state'),
-  refreshElements: () => ipcRenderer.invoke('refresh-elements'),
+  // ============ DOM ============
+  extractDom: () => ipcRenderer.invoke('extract-dom'),
+  clickElement: (id) => ipcRenderer.invoke('click-element', id),
+  typeInElement: (id, text) => ipcRenderer.invoke('type-in-element', id, text),
+  getPageInfo: () => ipcRenderer.invoke('get-page-info'),
 
-  // Screenshot
-  takeScreenshot: () => ipcRenderer.invoke('take-screenshot'),
+  // ============ PLATFORM ============
+  getPlatform: () => ipcRenderer.invoke('get-platform'),
 
-  // Automation
-  startAutomation: () => ipcRenderer.invoke('start-automation'),
-  pauseAutomation: () => ipcRenderer.invoke('pause-automation'),
-  resumeAutomation: () => ipcRenderer.invoke('resume-automation'),
-  stopAutomation: () => ipcRenderer.invoke('stop-automation'),
-  getAutomationState: () => ipcRenderer.invoke('get-automation-state'),
+  // ============ EVENTS (with cleanup) ============
+  onUrlChanged: (callback) => addListener('url-changed', callback),
+  onTitleChanged: (callback) => addListener('title-changed', callback),
+  onPageLoaded: (callback) => addListener('page-loaded', callback),
+  onPageError: (callback) => addListener('page-error', callback),
+  onPlatformInfo: (callback) => addListener('platform-info', callback),
+  onAgentMessage: (callback) => addListener('agent-message', callback),
 
-  // Viewport
-  getViewportPresets: () => ipcRenderer.invoke('get-viewport-presets'),
-  setViewport: (viewport, customWidth, customHeight) =>
-    ipcRenderer.invoke('set-viewport', { viewport, customWidth, customHeight }),
-  getCurrentViewport: () => ipcRenderer.invoke('get-current-viewport'),
+  // ============ AGENT API ============
+  setApiKey: (key) => ipcRenderer.invoke('set-api-key', key),
+  getAgentStatus: () => ipcRenderer.invoke('agent-status'),
+  analyzePage: () => ipcRenderer.invoke('analyze-page'),
+  generateTests: (pageData) => ipcRenderer.invoke('generate-tests', pageData),
+  startAutonomousTest: () => ipcRenderer.invoke('start-autonomous-test'),
+  stopAutonomousTest: () => ipcRenderer.invoke('stop-autonomous-test'),
+  chatWithAgent: (message, context) => ipcRenderer.invoke('chat-with-agent', message, context),
+  getWelcomeMessage: () => ipcRenderer.invoke('get-welcome-message'),
+  smartAnalyze: () => ipcRenderer.invoke('smart-analyze'),
 
-  // Event listeners
-  onEngineReady: (callback) => {
-    ipcRenderer.on('engine-ready', (event, data) => callback(data));
-  },
-  onEngineStopped: (callback) => {
-    ipcRenderer.on('engine-stopped', (event, data) => callback(data));
-  },
-  onPageNavigated: (callback) => {
-    ipcRenderer.on('page-navigated', (event, data) => callback(data));
-  },
-  onPageTitle: (callback) => {
-    ipcRenderer.on('page-title', (event, data) => callback(data));
-  },
-  onPageLoaded: (callback) => {
-    ipcRenderer.on('page-loaded', (event, data) => callback(data));
-  },
-  onElementsExtracted: (callback) => {
-    ipcRenderer.on('elements-extracted', (event, data) => callback(data));
-  },
-  onExtractionError: (callback) => {
-    ipcRenderer.on('extraction-error', (event, data) => callback(data));
-  },
-  onViewportChanged: (callback) => {
-    ipcRenderer.on('viewport-changed', (event, data) => callback(data));
-  },
+  // ============ ACTION API ============
+  performAction: (intent) => ipcRenderer.invoke('perform-action', intent),
+  pageAction: (action, value) => ipcRenderer.invoke('page-action', action, value),
+  executeTask: (task) => ipcRenderer.invoke('execute-task', task),
+  searchElements: (query) => ipcRenderer.invoke('search-elements', query),
+  getElementsByCategory: () => ipcRenderer.invoke('get-elements-by-category'),
 
-  // Automation events
-  onAutomationStarted: (callback) => {
-    ipcRenderer.on('automation-started', (event, data) => callback(data));
-  },
-  onAutomationActionStart: (callback) => {
-    ipcRenderer.on('automation-action-start', (event, data) => callback(data));
-  },
-  onAutomationActionComplete: (callback) => {
-    ipcRenderer.on('automation-action-complete', (event, data) => callback(data));
-  },
-  onAutomationPaused: (callback) => {
-    ipcRenderer.on('automation-paused', (event, data) => callback(data));
-  },
-  onAutomationResumed: (callback) => {
-    ipcRenderer.on('automation-resumed', (event, data) => callback(data));
-  },
-  onAutomationStopped: (callback) => {
-    ipcRenderer.on('automation-stopped', (event, data) => callback(data));
-  },
-  onAutomationComplete: (callback) => {
-    ipcRenderer.on('automation-complete', (event, data) => callback(data));
-  },
+  // ============ SCRIPT API ============
+  generateScript: (taskDescription) => ipcRenderer.invoke('generate-script', taskDescription),
+  executeScript: (scriptText) => ipcRenderer.invoke('execute-script', scriptText),
 
-  // Remove listeners
+  // ============ CLEANUP ============
   removeAllListeners: (channel) => {
-    ipcRenderer.removeAllListeners(channel);
-  }
-});
-
-// Also expose as window.electronAPI for compatibility
-contextBridge.exposeInMainWorld('electronAPI', {
-  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
-  on: (channel, callback) => {
-    ipcRenderer.on(channel, (event, ...args) => callback(...args));
+    if (channel) {
+      const channelListeners = listeners.get(channel)
+      if (channelListeners) {
+        channelListeners.forEach(cb => ipcRenderer.removeListener(channel, cb))
+        listeners.delete(channel)
+      }
+    } else {
+      // Remove all listeners
+      listeners.forEach((callbacks, ch) => {
+        callbacks.forEach(cb => ipcRenderer.removeListener(ch, cb))
+      })
+      listeners.clear()
+    }
   },
-  removeAllListeners: (channel) => {
-    ipcRenderer.removeAllListeners(channel);
-  }
-});
+})
