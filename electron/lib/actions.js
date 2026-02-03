@@ -92,7 +92,11 @@ async function executeAction(browserView, viewBounds, action, pageState, userMes
       if (clickResult.success) {
         result.success = true
         result.domChanged = clickResult.urlChanged || false
-        result.taskComplete = true  // ALWAYS stop after a successful click - let user see result
+        // NEVER stop after clicks - keep going until user's goal is satisfied
+        // The AI decides when task is complete, not the click action
+        result.taskComplete = false
+        result.urlChanged = clickResult.urlChanged || false
+        result.newUrl = clickResult.newUrl || null
 
         if (clickResult.urlChanged) {
           result.message = `✓ Clicked "${elName}" and navigated to ${clickResult.newUrl}`

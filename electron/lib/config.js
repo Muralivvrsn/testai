@@ -25,7 +25,7 @@ const TEST_CATEGORIES = {
 }
 
 const AGENT_LIMITS = {
-  maxIterations: 10,
+  maxIterations: 100,  // High limit - AI decides when to stop, not iteration count
   maxElements: 60,
   waitAfterClick: 1500,
   waitAfterType: 500,

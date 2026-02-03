@@ -67,14 +67,33 @@ async function extractDomForAI(browserView) {
 
         // Interactive elements to extract
         const selectors = [
+          // Standard form elements
           'button', 'a[href]', 'input', 'textarea', 'select',
+
+          // ALL inputs including hidden/unusual types
+          'input[type="text"]', 'input[type="email"]', 'input[type="password"]',
+          'input[type="tel"]', 'input[type="search"]', 'input[type="url"]',
+          'input[type="number"]', 'input:not([type])',  // inputs without type attribute
+
+          // ARIA roles
           '[role="button"]', '[role="link"]', '[role="tab"]',
           '[role="menuitem"]', '[role="checkbox"]', '[role="radio"]',
-          '[onclick]', '[data-action]', '[tabindex="0"]',
-          // OAuth/social login buttons often use these patterns
+          '[role="textbox"]', '[role="searchbox"]', '[role="combobox"]',
+
+          // Interactive attributes
+          '[onclick]', '[data-action]', '[tabindex="0"]', '[tabindex="1"]',
+          '[contenteditable="true"]', '[contenteditable=""]',
+
+          // OAuth/social login buttons
           '[class*="google"]', '[class*="login"]', '[class*="signin"]',
           '[class*="auth"]', '[class*="social"]', '[class*="btn"]',
-          '[id*="google"]', '[id*="login"]', '[id*="signin"]'
+          '[id*="google"]', '[id*="login"]', '[id*="signin"]',
+          '[id*="identifier"]', '[id*="email"]', '[id*="username"]',
+          '[id*="password"]', '[name*="identifier"]', '[name*="email"]',
+          '[name*="username"]', '[name*="password"]',
+
+          // Common input wrappers that contain hidden inputs
+          '[class*="input"]', '[class*="field"]', '[class*="form"]'
         ]
 
         const seen = new Set()
@@ -116,12 +135,10 @@ async function extractDomForAI(browserView) {
         })
 
         // Also find divs/spans that look clickable (cursor: pointer)
-        // Many OAuth buttons are styled divs without proper semantic markup
         document.querySelectorAll('div, span').forEach(el => {
           if (seen.has(el) || !isVisible(el)) return
           const style = getComputedStyle(el)
           const text = getText(el)
-          // Include if it looks clickable and has meaningful text
           if (style.cursor === 'pointer' && text.length > 0 && text.length < 50) {
             seen.add(el)
             const id = 'testai-' + (idCounter++)
@@ -148,6 +165,68 @@ async function extractDomForAI(browserView) {
             })
           }
         })
+
+        // FALLBACK: Find ALL input elements (some might have been missed)
+        // Google uses unusual inputs that don't match standard selectors
+        document.querySelectorAll('input, textarea, [contenteditable]').forEach(el => {
+          if (seen.has(el)) return
+
+          // Check visibility more permissively for inputs
+          const rect = el.getBoundingClientRect()
+          const style = getComputedStyle(el)
+          const isVisibleInput = rect.width > 10 && rect.height > 10 &&
+                                 style.display !== 'none' && style.visibility !== 'hidden'
+
+          if (!isVisibleInput) return
+          seen.add(el)
+
+          const id = 'testai-' + (idCounter++)
+          el.setAttribute('data-testai', id)
+
+          // Get label from various sources
+          let label = el.getAttribute('aria-label')
+          if (!label) {
+            // Try to find associated label
+            const labelEl = document.querySelector('label[for="' + el.id + '"]')
+            if (labelEl) label = labelEl.textContent?.trim()
+          }
+          if (!label) {
+            // Check parent for label text
+            const parent = el.closest('div, fieldset, label')
+            if (parent) {
+              const labelText = parent.querySelector('label, .label, [class*="label"]')
+              if (labelText) label = labelText.textContent?.trim()
+            }
+          }
+          if (!label) {
+            // Use placeholder or aria-labelledby
+            label = el.placeholder || el.getAttribute('aria-labelledby')
+          }
+
+          results.push({
+            id,
+            tag: el.tagName.toLowerCase(),
+            type: el.type || el.getAttribute('type') || 'text',
+            category: 'text-input',
+            text: '',
+            label: label?.slice(0, 100) || null,
+            placeholder: el.placeholder || null,
+            name: el.name || el.id || null,
+            href: null,
+            value: el.value || null,
+            disabled: el.disabled || false,
+            rect: {
+              x: Math.round(rect.x),
+              y: Math.round(rect.y),
+              width: Math.round(rect.width),
+              height: Math.round(rect.height)
+            }
+          })
+        })
+
+        // Log what we found for debugging
+        console.log('[DOM Extractor] Found', results.length, 'elements')
+        console.log('[DOM Extractor] Inputs:', results.filter(r => r.category === 'text-input').length)
 
         return results
       })()

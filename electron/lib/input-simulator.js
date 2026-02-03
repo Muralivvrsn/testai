@@ -1,9 +1,119 @@
 /**
  * Real input simulation (keyboard, mouse)
- * ~180 lines
+ * With visual cursor for QA testing
  */
 
 const { sleep } = require('./utils')
+
+/**
+ * Inject visual cursor into the page (call once per page)
+ */
+async function injectVisualCursor(browserView) {
+  if (!browserView) return false
+
+  try {
+    await browserView.webContents.executeJavaScript(`
+      (function() {
+        // Remove existing cursor if any
+        const existing = document.getElementById('testai-cursor')
+        if (existing) existing.remove()
+
+        // Create cursor using DOM methods (safe)
+        const cursor = document.createElement('div')
+        cursor.id = 'testai-cursor'
+
+        // Create SVG cursor shape
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        svg.setAttribute('width', '24')
+        svg.setAttribute('height', '24')
+        svg.setAttribute('viewBox', '0 0 24 24')
+        svg.setAttribute('fill', 'none')
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+        path.setAttribute('d', 'M5.5 3.5L18 12L12 13L9 19.5L5.5 3.5Z')
+        path.setAttribute('fill', '#6366f1')
+        path.setAttribute('stroke', '#fff')
+        path.setAttribute('stroke-width', '1.5')
+        svg.appendChild(path)
+        cursor.appendChild(svg)
+
+        cursor.style.cssText = 'position:fixed;top:0;left:0;width:24px;height:24px;pointer-events:none;z-index:999999;transition:transform 0.4s cubic-bezier(0.4,0,0.2,1);filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));display:none;'
+        document.body.appendChild(cursor)
+
+        // Create highlight ring
+        const ring = document.createElement('div')
+        ring.id = 'testai-ring'
+        ring.style.cssText = 'position:fixed;width:40px;height:40px;border:3px solid #6366f1;border-radius:50%;pointer-events:none;z-index:999998;opacity:0;transform:translate(-50%,-50%) scale(0.5);transition:all 0.3s ease;'
+        document.body.appendChild(ring)
+
+        window.__testaiCursor = cursor
+        window.__testaiRing = ring
+        return true
+      })()
+    `)
+    return true
+  } catch (e) {
+    console.log('Could not inject cursor:', e.message)
+    return false
+  }
+}
+
+/**
+ * Move visual cursor to position with animation
+ */
+async function moveCursorTo(browserView, x, y, click = false) {
+  if (!browserView) return
+
+  try {
+    await browserView.webContents.executeJavaScript(`
+      (function() {
+        const cursor = window.__testaiCursor || document.getElementById('testai-cursor')
+        const ring = window.__testaiRing || document.getElementById('testai-ring')
+        if (!cursor) return
+
+        cursor.style.display = 'block'
+        cursor.style.transform = 'translate(${x}px, ${y}px)'
+
+        if (${click}) {
+          // Show click effect
+          setTimeout(() => {
+            if (ring) {
+              ring.style.left = '${x}px'
+              ring.style.top = '${y}px'
+              ring.style.opacity = '1'
+              ring.style.transform = 'translate(-50%, -50%) scale(1)'
+
+              setTimeout(() => {
+                ring.style.opacity = '0'
+                ring.style.transform = 'translate(-50%, -50%) scale(1.5)'
+              }, 200)
+            }
+          }, 400)
+        }
+      })()
+    `)
+  } catch (e) {
+    // Ignore cursor errors
+  }
+}
+
+/**
+ * Hide the visual cursor
+ */
+async function hideCursor(browserView) {
+  if (!browserView) return
+
+  try {
+    await browserView.webContents.executeJavaScript(`
+      (function() {
+        const cursor = document.getElementById('testai-cursor')
+        if (cursor) cursor.style.display = 'none'
+      })()
+    `)
+  } catch (e) {
+    // Ignore
+  }
+}
 
 /**
  * Get element bounds for clicking
@@ -156,6 +266,10 @@ async function clickElement(browserView, viewBounds, elementId) {
     console.log('Element position in page:', elementInfo.x, elementInfo.y)
     console.log('View bounds:', viewBounds)
 
+    // ─── VISUAL CURSOR: Move to element before clicking ───
+    await moveCursorTo(browserView, elementInfo.x, elementInfo.y, true)
+    await sleep(500) // Let user see the cursor move
+
     // Calculate absolute screen position
     // The element position is relative to the viewport
     // viewBounds.x/y is where the BrowserView starts on screen
@@ -281,5 +395,9 @@ module.exports = {
   realPressEnter,
   clickElement,
   typeInElement,
-  scrollPage
+  scrollPage,
+  // Visual cursor functions
+  injectVisualCursor,
+  moveCursorTo,
+  hideCursor
 }

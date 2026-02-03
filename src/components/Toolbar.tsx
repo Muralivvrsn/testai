@@ -10,9 +10,12 @@ import {
   Tablet,
   Smartphone,
   MessageCircle,
+  Search,
 } from 'lucide-react'
-import { cn } from '../lib/cn'
-import type { ViewportType } from '../lib/types'
+import { cn } from '@/lib/cn'
+import { Button } from './ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
+import type { ViewportType } from '@/lib/types'
 
 interface ToolbarProps {
   url: string
@@ -32,7 +35,7 @@ interface ToolbarProps {
   modKey?: string
 }
 
-// Memoized smooth spring config
+// Smooth spring config
 const smoothSpring = {
   type: 'spring' as const,
   stiffness: 400,
@@ -63,8 +66,8 @@ export const Toolbar = memo(function Toolbar({
   modKey = '⌘',
 }: ToolbarProps) {
   const [inputValue, setInputValue] = useState(url)
+  const [isFocused, setIsFocused] = useState(false)
 
-  // Sync input value with url prop
   useEffect(() => {
     setInputValue(url)
   }, [url])
@@ -75,140 +78,202 @@ export const Toolbar = memo(function Toolbar({
     }
   }
 
-  // Platform-specific left padding (for Mac traffic lights or Windows margin)
   const leftPadding = isMac ? 80 : 16
 
   return (
-    <header
-      className="drag-region fixed top-0 left-0 right-0 h-[52px] bg-white border-b border-neutral-200 flex items-center px-3 gap-2 z-50"
-      style={{ paddingLeft: leftPadding }}
-    >
-      {/* Sidebar Toggle */}
-      <IconButton
-        icon={PanelLeft}
-        onClick={onToggleSidebar}
-        active={sidebarOpen}
-        tooltip={`Elements (${modKey}E)`}
-      />
-
-      <Divider />
-
-      {/* Navigation */}
-      <div className="no-drag flex items-center gap-0.5">
-        <IconButton icon={ChevronLeft} onClick={onBack} tooltip="Back" />
-        <IconButton icon={ChevronRight} onClick={onForward} tooltip="Forward" />
-        <IconButton
-          icon={RotateCw}
-          onClick={onReload}
-          tooltip={`Reload (${modKey}R)`}
-          isLoading={isLoading}
-        />
-      </div>
-
-      <Divider />
-
-      {/* URL Bar */}
-      <div className="no-drag flex-1 max-w-xl relative">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={(e) => e.target.select()}
-          placeholder="Enter URL to start testing..."
-          spellCheck={false}
-          autoComplete="off"
-          className="w-full h-9 px-4 pr-12 bg-neutral-100 border border-neutral-200 rounded-lg text-sm text-neutral-900 placeholder:text-neutral-400 outline-none transition-all duration-200 hover:border-neutral-300 focus:bg-white focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/5"
-        />
-        <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 bg-neutral-200/50 border border-neutral-200 rounded text-[10px] font-mono text-neutral-400">
-          {modKey}L
-        </kbd>
-      </div>
-
-      <Divider />
-
-      {/* Viewport Switcher */}
-      <div className="no-drag flex items-center bg-neutral-100 rounded-lg p-1 gap-0.5 relative">
-        {/* Animated background indicator */}
-        <motion.div
-          className="absolute h-7 bg-white rounded-md shadow-sm"
-          initial={false}
-          animate={{
-            x: viewports.findIndex(v => v.type === viewport) * 32 + 2,
-            width: 28,
-          }}
-          transition={smoothSpring}
-        />
-
-        {viewports.map(({ type, icon: Icon, label }) => (
-          <motion.button
-            key={type}
-            onClick={() => onViewportChange(type)}
-            className={cn(
-              'relative z-10 w-8 h-8 flex items-center justify-center rounded-md transition-colors duration-200',
-              viewport === type
-                ? 'text-neutral-900'
-                : 'text-neutral-500 hover:text-neutral-700'
-            )}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            title={label}
-          >
-            <Icon className="w-4 h-4" />
-          </motion.button>
-        ))}
-      </div>
-
-      <div className="flex-1" />
-
-      {/* Chat Toggle */}
-      <IconButton
-        icon={MessageCircle}
-        onClick={onToggleChat}
-        active={chatOpen}
-        tooltip={`AI Assistant (${modKey}J)`}
-      />
-    </header>
-  )
-})
-
-// Memoized Icon Button Component
-const IconButton = memo(function IconButton({
-  icon: Icon,
-  onClick,
-  active = false,
-  tooltip,
-  isLoading = false,
-}: {
-  icon: typeof Monitor
-  onClick: () => void
-  active?: boolean
-  tooltip?: string
-  isLoading?: boolean
-}) {
-  return (
-    <motion.button
-      onClick={onClick}
-      className={cn(
-        'no-drag w-8 h-8 flex items-center justify-center rounded-md transition-colors duration-200',
-        active
-          ? 'bg-neutral-900/5 text-neutral-900'
-          : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
-      )}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      title={tooltip}
-    >
-      <motion.div
-        animate={isLoading ? { rotate: 360 } : { rotate: 0 }}
-        transition={isLoading ? { duration: 1, repeat: Infinity, ease: 'linear' } : { duration: 0.2 }}
+    <TooltipProvider delayDuration={300}>
+      <header
+        className="drag-region fixed top-0 left-0 right-0 h-[56px] bg-white/90 dark:bg-[#111113]/90 backdrop-blur-2xl border-b border-[#4A5D6A]/10 dark:border-white/[0.06] flex items-center px-3 gap-3 z-50"
+        style={{ paddingLeft: leftPadding }}
       >
-        <Icon className="w-4 h-4" strokeWidth={1.75} />
-      </motion.div>
-    </motion.button>
-  )
-})
+        {/* Logo + Sidebar Toggle */}
+        <div className="no-drag flex items-center gap-2.5">
+          {/* Yalitest Logo */}
+          <img
+            src="/images/logo.svg"
+            alt="Yalitest"
+            className="h-7 dark:invert dark:brightness-200"
+          />
 
-const Divider = memo(function Divider() {
-  return <div className="w-px h-5 bg-neutral-200 mx-1" />
+          {/* Sidebar Toggle */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onToggleSidebar}
+                className={cn(
+                  'no-drag h-8 w-8',
+                  sidebarOpen && 'bg-[#4A5D6A]/10 dark:bg-white/[0.08] text-[#2a3a42] dark:text-white'
+                )}
+              >
+                <PanelLeft className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Elements ({modKey}E)</TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* Divider */}
+        <div className="h-6 w-px bg-[#4A5D6A]/10 dark:bg-white/[0.08]" />
+
+        {/* Navigation */}
+        <div className="no-drag flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={onBack} className="h-8 w-8">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Back</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={onForward} className="h-8 w-8">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Forward</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={onReload} className="h-8 w-8">
+                <motion.div
+                  animate={isLoading ? { rotate: 360 } : { rotate: 0 }}
+                  transition={isLoading ? { duration: 1, repeat: Infinity, ease: 'linear' } : { duration: 0.2 }}
+                >
+                  <RotateCw className="h-4 w-4" />
+                </motion.div>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Reload ({modKey}R)</TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* URL Bar - Calm, professional design */}
+        <div className="no-drag flex-1 max-w-2xl relative">
+          <motion.div
+            className={cn(
+              'relative flex items-center h-10 rounded-xl transition-all duration-200',
+              'bg-[#f8f9f6] dark:bg-white/[0.04]',
+              'border border-transparent',
+              isFocused
+                ? 'bg-white dark:bg-[#161618] border-[#4A5D6A]/30 dark:border-[#4A5D6A]/30 shadow-sm'
+                : 'hover:bg-white dark:hover:bg-white/[0.06]'
+            )}
+          >
+            {/* Search icon */}
+            <div className="pl-3.5 pr-1 flex items-center">
+              <Search className={cn(
+                'w-4 h-4 transition-colors duration-200',
+                isFocused ? 'text-[#4A5D6A]' : 'text-[#4A5D6A]/40 dark:text-white/30'
+              )} />
+            </div>
+
+            {/* Input */}
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={(e) => {
+                setIsFocused(true)
+                e.target.select()
+              }}
+              onBlur={() => setIsFocused(false)}
+              placeholder="Enter URL to start testing..."
+              spellCheck={false}
+              autoComplete="off"
+              className={cn(
+                'flex-1 h-full bg-transparent px-2 text-sm font-medium',
+                'text-[#2a3a42] dark:text-white',
+                'placeholder:text-[#4A5D6A]/40 dark:placeholder:text-white/30',
+                'outline-none'
+              )}
+            />
+
+            {/* Keyboard shortcut */}
+            <div className="pr-3 flex items-center">
+              <kbd className={cn(
+                'px-2 py-0.5 rounded-md text-[11px] font-mono font-medium transition-colors duration-200',
+                isFocused
+                  ? 'bg-[#4A5D6A]/10 dark:bg-[#4A5D6A]/20 text-[#4A5D6A] dark:text-white/60'
+                  : 'bg-[#4A5D6A]/5 dark:bg-white/[0.06] text-[#4A5D6A]/50 dark:text-white/40'
+              )}>
+                {modKey}L
+              </kbd>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Divider */}
+        <div className="h-6 w-px bg-[#4A5D6A]/10 dark:bg-white/[0.08]" />
+
+        {/* Viewport Switcher */}
+        <div className="no-drag flex items-center bg-[#f8f9f6] dark:bg-white/[0.04] rounded-xl p-1 gap-0.5 relative">
+          {/* Animated background indicator */}
+          <motion.div
+            className="absolute h-8 bg-white dark:bg-white/[0.1] rounded-lg shadow-sm"
+            initial={false}
+            animate={{
+              x: viewports.findIndex(v => v.type === viewport) * 34 + 2,
+              width: 30,
+            }}
+            transition={smoothSpring}
+          />
+
+          {viewports.map(({ type, icon: Icon, label }) => (
+            <Tooltip key={type}>
+              <TooltipTrigger asChild>
+                <motion.button
+                  onClick={() => onViewportChange(type)}
+                  className={cn(
+                    'relative z-10 w-[34px] h-8 flex items-center justify-center rounded-lg transition-colors duration-200',
+                    viewport === type
+                      ? 'text-[#2a3a42] dark:text-white'
+                      : 'text-[#4A5D6A]/50 dark:text-white/40 hover:text-[#4A5D6A] dark:hover:text-white/60'
+                  )}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Icon className="w-4 h-4" />
+                </motion.button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{label}</TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Chat Toggle - Calm, professional */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <motion.button
+              onClick={onToggleChat}
+              className={cn(
+                'no-drag relative flex items-center gap-2 h-9 px-4 rounded-xl font-medium text-sm transition-all duration-200',
+                chatOpen
+                  ? 'bg-[#4A5D6A] text-white'
+                  : 'bg-[#f8f9f6] dark:bg-white/[0.04] text-[#4A5D6A] dark:text-white/70 hover:bg-[#4A5D6A]/10 dark:hover:bg-white/[0.08]'
+              )}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">Assistant</span>
+              {!chatOpen && (
+                <kbd className="hidden sm:inline px-1.5 py-0.5 bg-[#4A5D6A]/10 dark:bg-white/[0.1] rounded text-[10px] font-mono text-[#4A5D6A]/60 dark:text-white/50">
+                  {modKey}J
+                </kbd>
+              )}
+            </motion.button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">AI Assistant ({modKey}J)</TooltipContent>
+        </Tooltip>
+      </header>
+    </TooltipProvider>
+  )
 })

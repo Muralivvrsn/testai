@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('api', {
   onPageError: (callback) => addListener('page-error', callback),
   onPlatformInfo: (callback) => addListener('platform-info', callback),
   onAgentMessage: (callback) => addListener('agent-message', callback),
+  onTodoUpdate: (callback) => addListener('todo-update', callback),
 
   // ============ AGENT API ============
   setApiKey: (key) => ipcRenderer.invoke('set-api-key', key),
@@ -75,6 +76,12 @@ contextBridge.exposeInMainWorld('api', {
   // ============ SCRIPT API ============
   generateScript: (taskDescription) => ipcRenderer.invoke('generate-script', taskDescription),
   executeScript: (scriptText) => ipcRenderer.invoke('execute-script', scriptText),
+
+  // ============ ORCHESTRATOR API ============
+  getTodoList: () => ipcRenderer.invoke('get-todo-list'),
+  getAIPromptHistory: () => ipcRenderer.invoke('get-ai-prompt-history'),
+  startExploration: (request) => ipcRenderer.invoke('start-exploration', request),
+  stopExploration: () => ipcRenderer.invoke('stop-exploration'),
 
   // ============ CLEANUP ============
   removeAllListeners: (channel) => {

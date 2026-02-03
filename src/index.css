@@ -1,28 +1,181 @@
+/* Goodly Font Family */
+@font-face {
+  font-family: 'Goodly';
+  src: url('/fonts/goodly-font/goodly-extralight.otf') format('opentype');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Goodly';
+  src: url('/fonts/goodly-font/goodly-light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Goodly';
+  src: url('/fonts/goodly-font/goodly-regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Goodly';
+  src: url('/fonts/goodly-font/goodly-medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Goodly';
+  src: url('/fonts/goodly-font/goodly-semibold.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Goodly';
+  src: url('/fonts/goodly-font/goodly-bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ============ BASE RESET ============ */
+/* ============ GLOBAL RESETS ============ */
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
-html, body, #root {
-  height: 100%;
-  overflow: hidden;
+textarea,
+input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
 }
 
+textarea:focus,
+input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Better font rendering */
 body {
-  font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
+/* ============ CSS VARIABLES (shadcn/ui style) ============ */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 9%;
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 64%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 0 0% 83%;
+  }
+}
+
+/* ============ BASE RESET ============ */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* ============ GLASSMORPHISM ============ */
+@layer utilities {
+  .glass {
+    @apply bg-white/80 backdrop-blur-xl border border-white/20;
+  }
+
+  .glass-dark {
+    @apply bg-neutral-900/80 backdrop-blur-xl border border-white/10;
+  }
+
+  .glass-subtle {
+    @apply bg-white/60 backdrop-blur-md border border-neutral-200/50;
+  }
+}
+
+/* ============ SMOOTH TRANSITIONS ============ */
+@layer utilities {
+  .transition-smooth {
+    @apply transition-all duration-300 ease-smooth;
+  }
+
+  .transition-colors-smooth {
+    @apply transition-colors duration-200 ease-smooth;
+  }
+}
+
 /* ============ PERFORMANCE LAYERS ============ */
-/* Promote animated elements to GPU layer for smoother animations */
 .will-change-transform {
   will-change: transform;
 }
@@ -31,14 +184,12 @@ body {
   will-change: opacity;
 }
 
-/* Force GPU acceleration for panels */
 .gpu-accelerated {
   transform: translateZ(0);
   backface-visibility: hidden;
   perspective: 1000px;
 }
 
-/* Optimize layout containment for performance */
 .contain-layout {
   contain: layout;
 }
@@ -53,8 +204,8 @@ body {
 
 /* ============ SCROLLBAR ============ */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -62,12 +213,24 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d4d4d4;
-  border-radius: 3px;
+  background: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a3a3a3;
+  background: hsl(var(--muted-foreground) / 0.35);
+  background-clip: content-box;
+}
+
+/* Thin scrollbar for sidebar */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  border-width: 1px;
 }
 
 /* ============ ELECTRON DRAG REGIONS ============ */
@@ -80,7 +243,6 @@ body {
 }
 
 /* ============ ACCESSIBILITY ============ */
-/* Respect user preference for reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -93,20 +255,17 @@ body {
 }
 
 /* ============ FOCUS STATES ============ */
-/* Keyboard focus ring for accessibility */
 :focus-visible {
-  outline: 2px solid #171717;
-  outline-offset: 2px;
+  @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
 }
 
-/* Remove focus ring for mouse users */
 :focus:not(:focus-visible) {
   outline: none;
 }
 
 /* ============ SELECTION ============ */
 ::selection {
-  background: rgba(23, 23, 23, 0.15);
+  @apply bg-primary/15;
 }
 
 /* ============ INPUT OPTIMIZATIONS ============ */
@@ -114,9 +273,111 @@ input, textarea, select, button {
   font: inherit;
 }
 
-/* Prevent iOS zoom on input focus */
 @supports (-webkit-touch-callout: none) {
   input, textarea, select {
     font-size: 16px;
   }
+}
+
+/* ============ CUSTOM COMPONENTS ============ */
+@layer components {
+  /* Premium button styles */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2
+           bg-primary text-primary-foreground font-medium text-sm
+           rounded-lg shadow-soft transition-all duration-200
+           hover:shadow-soft-md hover:scale-[1.02]
+           active:scale-[0.98] active:shadow-sm
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2
+           bg-secondary text-secondary-foreground font-medium text-sm
+           rounded-lg border border-border/50 transition-all duration-200
+           hover:bg-accent hover:border-border
+           active:scale-[0.98]
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-2
+           text-muted-foreground font-medium text-sm rounded-lg
+           transition-all duration-200
+           hover:bg-accent hover:text-foreground
+           active:scale-[0.98]
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  /* Premium input styles */
+  .input-base {
+    @apply w-full px-4 py-2.5 bg-background border border-input rounded-lg
+           text-sm text-foreground placeholder:text-muted-foreground
+           transition-all duration-200 shadow-inner-soft
+           hover:border-muted-foreground/30
+           focus:border-ring focus:ring-2 focus:ring-ring/10 focus:shadow-soft
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Card styles */
+  .card-base {
+    @apply bg-card text-card-foreground rounded-xl border border-border/50
+           shadow-soft transition-all duration-300;
+  }
+
+  .card-hover {
+    @apply card-base hover:shadow-soft-md hover:border-border;
+  }
+
+  .card-interactive {
+    @apply card-hover hover:scale-[1.01] active:scale-[0.99] cursor-pointer;
+  }
+
+  /* Panel styles for sidebars */
+  .panel-base {
+    @apply bg-card/95 backdrop-blur-sm border-border/50 shadow-soft-lg;
+  }
+
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full
+           text-xs font-medium bg-secondary text-secondary-foreground
+           border border-border/30;
+  }
+
+  .badge-primary {
+    @apply badge bg-primary/10 text-primary border-primary/20;
+  }
+
+  /* Tooltip styles */
+  .tooltip-content {
+    @apply px-3 py-1.5 bg-foreground text-background text-xs font-medium
+           rounded-md shadow-soft-md animate-fade-in;
+  }
+}
+
+/* ============ SHIMMER EFFECT ============ */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--muted)) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* ============ GLOW EFFECT ============ */
+.glow-primary {
+  box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
+}
+
+.glow-success {
+  box-shadow: 0 0 20px -5px hsl(142 76% 36% / 0.3);
+}
+
+/* ============ GRADIENT TEXT ============ */
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-foreground to-muted-foreground;
 }

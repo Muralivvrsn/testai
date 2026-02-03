@@ -52,6 +52,7 @@ declare global {
       onPageError: (callback: (error: { errorCode: number; errorDescription: string }) => void) => () => void
       onPlatformInfo: (callback: (info: { isMac: boolean; isWindows: boolean }) => void) => () => void
       onAgentMessage: (callback: (msg: AgentMessage) => void) => () => void
+      onTodoUpdate: (callback: (data: any) => void) => () => void
       removeAllListeners: (channel?: string) => void
       // Agent API
       setApiKey: (key: string) => Promise<{ success: boolean }>
@@ -138,6 +139,11 @@ declare global {
         }>
         summary?: string
       }>
+      // Orchestrator API
+      getTodoList: () => Promise<{ success: boolean; data?: any; error?: string }>
+      getAIPromptHistory: () => Promise<{ success: boolean; history?: any[]; formatted?: string; error?: string }>
+      startExploration: (request: string) => Promise<{ success: boolean; result?: any; error?: string }>
+      stopExploration: () => Promise<{ success: boolean; error?: string }>
     }
   }
 }
@@ -210,6 +216,10 @@ export function useAppStore() {
   const [isThinking, setIsThinking] = useState(false)
   const [hasWelcomed, setHasWelcomed] = useState(false)
 
+  // TODO/Orchestrator State
+  const [todoData, setTodoData] = useState<any>(null)
+  const [isExploring, setIsExploring] = useState(false)
+
   // ============ PLATFORM DETECTION ============
   useEffect(() => {
     window.api?.getPlatform?.().then(setPlatform)
@@ -223,14 +233,16 @@ export function useAppStore() {
     // Cancel any ongoing animation
     if (cancelAnimation.current) cancelAnimation.current()
 
-    const targetWidth = newState ? 280 : 0
+    // Sync with Electron BrowserView
+    const targetWidth = newState ? 300 : 0
     cancelAnimation.current = animateValue(
       currentSidebarWidth.current,
       targetWidth,
       (value) => {
         currentSidebarWidth.current = value
         window.api?.setSidebarWidth(value)
-      }
+      },
+      250
     )
   }, [sidebarOpen])
 
@@ -239,16 +251,19 @@ export function useAppStore() {
     const newState = !chatOpen
     setChatOpen(newState)
 
+    // Cancel any ongoing animation
     if (cancelAnimation.current) cancelAnimation.current()
 
-    const targetWidth = newState ? 360 : 0
+    // Sync with Electron BrowserView
+    const targetWidth = newState ? 380 : 0
     cancelAnimation.current = animateValue(
       currentChatWidth.current,
       targetWidth,
       (value) => {
         currentChatWidth.current = value
         window.api?.setChatWidth(value)
-      }
+      },
+      250
     )
 
     // Show welcome message when opening chat for the first time
@@ -468,6 +483,69 @@ export function useAppStore() {
     setIsThinking(false)
   }, [url])
 
+  // ============ ORCHESTRATOR METHODS ============
+  const startExploration = useCallback(async (request: string) => {
+    setIsExploring(true)
+
+    // Add exploring message
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      content: `Starting exploration: "${request}"`,
+      role: 'assistant',
+      timestamp: new Date(),
+    }])
+
+    try {
+      // Fetch initial TODO list
+      const todoResult = await (window.api as any)?.getTodoList?.()
+      if (todoResult?.success) {
+        setTodoData(todoResult.data)
+      }
+
+      // Start exploration
+      const result = await (window.api as any)?.startExploration?.(request)
+
+      if (result?.success) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          content: `Exploration complete! ${result.result?.summary || ''}`,
+          role: 'assistant',
+          timestamp: new Date(),
+        }])
+      } else {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          content: `Exploration failed: ${result?.error || 'Unknown error'}`,
+          role: 'assistant',
+          timestamp: new Date(),
+          type: 'error'
+        }])
+      }
+    } catch (error: any) {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        content: `Error: ${error.message}`,
+        role: 'assistant',
+        timestamp: new Date(),
+        type: 'error'
+      }])
+    }
+
+    setIsExploring(false)
+  }, [])
+
+  const stopExploration = useCallback(async () => {
+    await (window.api as any)?.stopExploration?.()
+    setIsExploring(false)
+  }, [])
+
+  const refreshTodoList = useCallback(async () => {
+    const result = await (window.api as any)?.getTodoList?.()
+    if (result?.success) {
+      setTodoData(result.data)
+    }
+  }, [])
+
   // ============ EVENT LISTENERS ============
   useEffect(() => {
     const cleanups: (() => void)[] = []
@@ -510,6 +588,12 @@ export function useAppStore() {
       }
     })
     if (agentCleanup) cleanups.push(agentCleanup)
+
+    // TODO updates from orchestrator
+    const todoCleanup = window.api?.onTodoUpdate?.((data: any) => {
+      setTodoData(data)
+    })
+    if (todoCleanup) cleanups.push(todoCleanup)
 
     // Cleanup on unmount
     return () => {
@@ -555,6 +639,13 @@ export function useAppStore() {
     isThinking,
     sendMessage,
     startTest,
+
+    // Orchestrator State
+    todoData,
+    isExploring,
+    startExploration,
+    stopExploration,
+    refreshTodoList,
   }), [
     platform,
     sidebarOpen,
@@ -580,5 +671,10 @@ export function useAppStore() {
     isThinking,
     sendMessage,
     startTest,
+    todoData,
+    isExploring,
+    startExploration,
+    stopExploration,
+    refreshTodoList,
   ])
 }

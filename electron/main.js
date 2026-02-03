@@ -1,11 +1,23 @@
 /**
- * TestAI Main Process
- * Clean modular architecture - ~450 lines
+ * Yalitest Main Process
+ * Clean modular architecture with auto-update
  */
 
 const { app, BrowserWindow, BrowserView, ipcMain, nativeTheme } = require('electron')
 const path = require('path')
 const fs = require('fs')
+
+// Auto-updater for automatic updates
+let autoUpdater = null
+if (app.isPackaged) {
+  try {
+    autoUpdater = require('electron-updater').autoUpdater
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+  } catch (e) {
+    console.log('Auto-updater not available:', e.message)
+  }
+}
 
 // Import modules
 const { setApiKey, getApiKey, isApiConfigured } = require('./lib/api')
@@ -21,8 +33,8 @@ const { getKnowledgeForPageType, formatKnowledgeForPrompt } = require('./lib/kno
 // ============ STATE ============
 let mainWindow = null
 let browserView = null
-let sidebarWidth = 220
-let chatWidth = 380
+let sidebarWidth = 0  // Start with sidebar closed
+let chatWidth = 0     // Start with chat closed
 let viewportOverride = null
 let resizeTimeout = null
 
@@ -132,7 +144,7 @@ function updateBrowserViewBounds() {
   if (!mainWindow || !browserView) return
 
   const bounds = mainWindow.getContentBounds()
-  const topBarHeight = 52
+  const topBarHeight = 56  // Match React's top-[56px]
 
   let x = sidebarWidth
   let y = topBarHeight
@@ -334,12 +346,12 @@ ipcMain.handle('chat-with-agent', async (_, message, context) => {
       } catch (e) {}
     }
 
-    // Build conversation context
-    const recentChat = conversationHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n')
-    const recentActions = actionHistory.slice(-5).map(a => `- ${a.action}: ${a.result}`).join('\n')
+    // Build conversation context - include more history for better context
+    const recentChat = conversationHistory.slice(-10).map(m => `${m.role}: ${m.content}`).join('\n')
+    const recentActions = actionHistory.slice(-8).map(a => `- ${a.action}: ${a.result}`).join('\n')
 
     // Ask AI what to do with FULL context
-    const decisionPrompt = `You are Alex, a friendly QA engineer assistant.
+    const decisionPrompt = `You are Yali, a proactive QA engineer. You DO things, you don't ask unnecessary questions.
 
 CONVERSATION HISTORY:
 ${recentChat || 'No previous messages'}
@@ -354,31 +366,65 @@ USER'S NEW MESSAGE: "${message}"
 
 Decide what to do. Return JSON:
 
-For greetings/chat:
-{ "type": "chat", "response": "your friendly response" }
+For greetings/casual chat only:
+{ "type": "chat", "response": "brief friendly response" }
 
-For navigation (user mentions a URL or website):
-{ "type": "navigate", "url": "full URL to load", "message": "brief acknowledgment" }
+For "TEST [URL]" requests (user wants to test a website):
+{ "type": "test_url", "url": "full URL" }
 
-For page actions (find, click, type, etc.):
+For navigation ONLY (user just wants to visit/open a page, no testing):
+{ "type": "navigate", "url": "full URL" }
+
+For EXPLORATION requests on current page (explore, test everything, check the site, find issues):
+{ "type": "explore", "scope": "full" }
+
+For LOGIN with credentials (user provides email/username AND password):
+{ "type": "login", "email": "the email/username", "password": "the password" }
+
+For specific actions (click X, type Y, find Z):
 { "type": "action" }
 
-For unclear requests:
-{ "type": "clarify", "response": "ask what they need" }
+For situations where you TRULY cannot proceed:
+{ "type": "clarify", "response": "ask ONLY what's blocking you" }
 
-RULES:
-- Be conversational and natural
-- Use past tense for completed actions ("I've loaded" not "I'll load")
-- Reference conversation history when relevant
-- If they just say "load the page" without a URL, ask which page`
+CRITICAL RULES:
+- "can you test [URL]" = type "test_url" - NAVIGATE AND START TESTING
+- "test the [site]" = type "test_url" - NAVIGATE AND START TESTING
+- "test this website" on current page = type "explore"
+- "explore/audit/review" = type "explore" - START IMMEDIATELY
+- "go to [URL]" or "open [URL]" WITHOUT test/check/explore = type "navigate"
+- If user provides BOTH email/username AND password = type "login" - extract and use them
+- If message contains URL + email + "let me know if you need password" = type "test_url", work until you need password
+- NEVER ask "what do you want me to check" - a QA tests EVERYTHING
+- NEVER stop after one action - CONTINUE until the user's goal is FULLY satisfied
+- Be a DOER, not an asker - KEEP WORKING until done`
 
+    // ALL DECISIONS MADE BY AI - No hardcoded pattern matching
     console.log('Asking AI for decision...')
     const response = await callDeepSeek([
-      { role: 'system', content: 'You are Alex, a friendly QA assistant. Return only valid JSON.' },
+      { role: 'system', content: 'You are Yali, a friendly QA assistant. Return only valid JSON.' },
       { role: 'user', content: decisionPrompt }
     ], { jsonMode: true, maxTokens: 300, temperature: 0.3 })
 
-    const decision = JSON.parse(response.content)
+    // Parse AI response with error handling
+    let decision
+    try {
+      decision = JSON.parse(response.content)
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError.message)
+      console.log('Raw response:', response.content?.slice(0, 200))
+
+      // Try to extract action type from malformed response
+      if (/action|click|type|navigate/i.test(response.content)) {
+        decision = { type: 'action' }
+      } else {
+        // Fallback: treat as chat
+        decision = {
+          type: 'chat',
+          response: "I understood your request. Let me help you with that."
+        }
+      }
+    }
     console.log('AI decision:', decision.type)
 
     // Handle based on AI decision
@@ -450,9 +496,148 @@ RULES:
         }
       }
 
+      case 'test_url': {
+        // User wants to TEST a URL - navigate AND start testing automatically
+        if (!browserView) createBrowserView()
+
+        let url = decision.url
+        if (!/^https?:\/\//i.test(url)) {
+          const isLocal = url.includes('localhost') || url.includes('127.0.0.1')
+          url = (isLocal ? 'http://' : 'https://') + url
+        }
+
+        sendMessage?.('action', `🌐 Loading ${url}...`)
+
+        try {
+          await browserView.webContents.loadURL(url)
+          await sleep(2500)
+
+          // Get page title
+          let title = url
+          try {
+            title = await browserView.webContents.executeJavaScript('document.title') || url
+          } catch (e) {}
+
+          addAction(`Navigate to ${url}`, 'success')
+          sendMessage?.('action', `✓ Loaded **${title}**`)
+
+          // Run agent with the USER'S ORIGINAL MESSAGE - it contains important context like email/password
+          const result = await runAgentLoop(
+            browserView,
+            getViewBounds(),
+            message,  // Pass the ORIGINAL user message, not a generic one!
+            sendMessage
+          )
+
+          // Check if we need credentials (landed on login page)
+          if (result.needsCredentials) {
+            const credResponse = result.response || result.report
+            addToHistory('assistant', credResponse)
+            return {
+              success: true,
+              response: credResponse,
+              needsCredentials: true,
+              actionsTaken: 1
+            }
+          }
+
+          if (result.history) {
+            result.history.forEach(h => addAction(h.action, h.result))
+          }
+
+          const fullResponse = result.response || `Testing complete! ${result.actionsTaken || 0} actions performed.`
+          addToHistory('assistant', fullResponse)
+          return {
+            success: result.success,
+            response: fullResponse,
+            actionsTaken: (result.actionsTaken || 0) + 1
+          }
+
+        } catch (err) {
+          addAction(`Test ${url}`, `failed: ${err.message}`)
+          const errorResponse = `I couldn't load that page: ${err.message}`
+          addToHistory('assistant', errorResponse)
+          return { success: false, error: errorResponse }
+        }
+      }
+
+      case 'explore': {
+        // Full exploration mode - like a real QA engineer
+        if (!browserView) {
+          const response = "I need a page to explore first. Which website should I test?"
+          addToHistory('assistant', response)
+          return { success: true, response }
+        }
+
+        // Get current URL
+        let currentUrl = 'unknown'
+        try {
+          currentUrl = await browserView.webContents.executeJavaScript('location.href')
+        } catch (e) {}
+
+        // Start exploration with a clear acknowledgment
+        const startMsg = `🔍 **Starting full exploration of ${currentUrl}**\n\nI'll systematically test:\n• All buttons and clickable elements\n• Form inputs and validation\n• Navigation and links\n• Edge cases and error states\n\nLet's go!`
+        sendMessage?.('action', startMsg)
+
+        // Run the full agent loop with the USER'S ORIGINAL MESSAGE
+        const result = await runAgentLoop(browserView, getViewBounds(), message, sendMessage)
+
+        // Record actions taken
+        if (result.history) {
+          result.history.forEach(h => addAction(h.action, h.result))
+        }
+
+        const fullResponse = result.response || `Exploration complete! ${result.actionsTaken || 0} actions performed.`
+        addToHistory('assistant', fullResponse)
+        return {
+          success: result.success,
+          response: fullResponse,
+          actionsTaken: result.actionsTaken || 0
+        }
+      }
+
+      case 'login': {
+        // AI detected user providing login credentials
+        if (!browserView) {
+          const response = "I need a page to login to. Which website should I navigate to first?"
+          addToHistory('assistant', response)
+          return { success: true, response }
+        }
+
+        const email = decision.email
+        const password = decision.password
+
+        if (!email || !password) {
+          const response = "I need both email/username and password to login. What are they?"
+          addToHistory('assistant', response)
+          return { success: true, response }
+        }
+
+        sendMessage?.('action', `🔐 Logging in with ${email}...`)
+
+        // Run the login action through the agent
+        const loginResult = await runAgentLoop(
+          browserView,
+          getViewBounds(),
+          `Login with email/username "${email}" and password "${password}". Type the email in the email/username field, type the password in the password field, then click the login/submit button.`,
+          sendMessage
+        )
+
+        if (loginResult.history) {
+          loginResult.history.forEach(h => addAction(h.action, h.result))
+        }
+
+        addToHistory('assistant', loginResult.response || loginResult.error)
+        return {
+          success: loginResult.success,
+          response: loginResult.response || loginResult.error,
+          actionsTaken: loginResult.actionsTaken || 0
+        }
+      }
+
       case 'action': {
         if (!browserView) {
-          const response = "I'd be happy to help! Which website should I navigate to first?"
+          const response = "I need a page to work with. Which website should I navigate to?"
           addToHistory('assistant', response)
           return { success: true, response }
         }
@@ -634,9 +819,163 @@ ipcMain.handle('smart-analyze', async () => {
   return { success: true, summary }
 })
 
+// ============ QA ORCHESTRATOR ============
+let orchestrator = null
+
+ipcMain.handle('get-todo-list', () => {
+  if (!orchestrator) {
+    return { success: false, error: 'No orchestrator session active' }
+  }
+
+  const summary = orchestrator.getTodoSummary()
+  const currentTaskId = orchestrator._currentTaskId
+  const currentTask = currentTaskId ? orchestrator.getTaskDetails(currentTaskId) : null
+
+  // Get task lists
+  const pendingTasks = orchestrator._taskQueue
+    .filter(t => t.status === 'pending')
+    .slice(0, 10)
+    .map(t => ({
+      id: t.id,
+      title: t.title,
+      priority: t.priority,
+      status: t.status,
+      steps: t.steps?.map((s, i) => ({
+        stepNumber: i,
+        action: s.action,
+        description: s.description,
+        status: s.status
+      }))
+    }))
+
+  const completedTasks = orchestrator._completedTasks
+    .slice(-5)
+    .map(t => ({
+      id: t.id,
+      title: t.title,
+      priority: t.priority,
+      status: t.status,
+      durationMs: t.durationMs
+    }))
+
+  const failedTasks = orchestrator._failedTasks
+    .slice(-5)
+    .map(t => ({
+      id: t.id,
+      title: t.title,
+      priority: t.priority,
+      status: t.status,
+      error: t.error
+    }))
+
+  return {
+    success: true,
+    data: {
+      summary,
+      currentTask,
+      pendingTasks,
+      completedTasks,
+      failedTasks
+    }
+  }
+})
+
+ipcMain.handle('get-ai-prompt-history', () => {
+  if (!orchestrator) {
+    return { success: false, error: 'No orchestrator session active' }
+  }
+
+  return {
+    success: true,
+    history: orchestrator.getAIPromptHistory(),
+    formatted: orchestrator.formatAIPromptHistory()
+  }
+})
+
+ipcMain.handle('start-exploration', async (_, request) => {
+  try {
+    const { startExploration, getOrchestrator } = require('./lib/agent')
+
+    // Create or get orchestrator
+    orchestrator = getOrchestrator({
+      onTodoUpdate: (summary) => {
+        // Send TODO update to renderer
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('todo-update', summary)
+        }
+      },
+      onProgress: (progress) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('agent-message', {
+            type: 'progress',
+            message: progress.message || 'Exploring...',
+            data: progress
+          })
+        }
+      }
+    })
+
+    // Send message helper
+    const sendMessage = (msg) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('agent-message', msg)
+      }
+    }
+
+    // Start exploration
+    const result = await startExploration(browserView, viewBounds, request, sendMessage)
+
+    return { success: true, result }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('stop-exploration', () => {
+  if (orchestrator) {
+    orchestrator.pause()
+    return { success: true }
+  }
+  return { success: false, error: 'No exploration running' }
+})
+
+// ============ AUTO-UPDATE ============
+function setupAutoUpdater() {
+  if (!autoUpdater) return
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for updates...')
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version)
+    mainWindow?.webContents.send('update-available', info.version)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('Update downloaded:', info.version)
+    mainWindow?.webContents.send('update-downloaded', info.version)
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.log('Auto-update error:', err.message)
+  })
+
+  // Check for updates every 4 hours
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch(() => {})
+  }, 4 * 60 * 60 * 1000)
+
+  // Check immediately on startup
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch(() => {})
+  }, 5000)
+}
+
 // ============ APP LIFECYCLE ============
 app.whenReady().then(() => {
   createWindow()
+  setupAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
